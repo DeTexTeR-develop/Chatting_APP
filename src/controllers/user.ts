@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
 
 import { pool } from "../config/db";
-import { UUID } from "node:crypto";
+import bcrypt from "bcrypt";
 
 const getAllUsers = async(req : Request, res : Response) : Promise<void> => {
     try{
         const users = await pool.query(
-            `SELECT * FROM users`
+            `
+            SELECT * FROM users
+            `
         );
         res.status(200).json({
             success: true,
@@ -25,7 +27,10 @@ const getUser = async(req: Request, res: Response) : Promise<void> => {
     try{
         const id = req.params.id;
         const user = await pool.query(
-            `SELECT * FROM users WHERE id = $1 `, [id]
+            `
+            SELECT * FROM users 
+            WHERE id = $1 
+            `, [id]
         );
         res.status(200).json({
             success: true,
@@ -38,6 +43,52 @@ const getUser = async(req: Request, res: Response) : Promise<void> => {
             message: "Internal Server Error in Getting User"
         })
     }
+};
+
+const createUser = async (req: Request, res: Response) : Promise<void> => {
+    const {username, email, password} = req.body;
+    if(!username || !email || !password){
+        res.status(400).json({
+            success: false,
+            message: "Please provide all the fields"
+        });
+    };
+
+    const existingUser = await pool.query(
+        `
+        SELECT * FROM users
+        WHERE email=$1
+        `, [email]
+    );
+    
+    if(existingUser.rowCount && existingUser.rowCount> 0){
+        res.status(409).json({
+            success: false,
+            message: "User already exists"
+        });
+        return;
+    };
+
+    const saltRounds : number = 10;
+
+    const hashedPassword = await bcrypt.hash(password , saltRounds);
+
+    const newUser = await pool.query(
+        `
+        INSERT INTO users(
+            username,
+            email,
+            password
+            ) VALUES($1, $2, $3)
+        RETURNING id, username, email, created_at
+        `, 
+        [username, email, hashedPassword]
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `User Created Successfully : ${JSON.stringify(newUser.rows[0])}`
+    });
 };
 
 const updateUser = async (req: Request, res: Response): Promise<void> => {
@@ -65,7 +116,8 @@ const updateUser = async (req: Request, res: Response): Promise<void> => {
         };
 
         values.push(id);
-        const query: string = `
+        const query: string = 
+        `
             UPDATE users
             SET ${fields.join(", ")}
             WHERE id = $${values.length}
@@ -89,4 +141,36 @@ const updateUser = async (req: Request, res: Response): Promise<void> => {
     }
 };
 
-export  {getAllUsers, getUser, updateUser};
+const deleteUser = async(req: Request, res: Response) : Promise<void> => {
+    try{
+        const id = req.params.id;
+    const deletedUser = await pool.query(
+        `
+        DELETE FROM users
+        WHERE id = $1
+        RETURNING *
+        `
+        ,[id]
+    );
+    
+        if(deletedUser.rowCount === 0){
+        res.status(400).json({
+            success: false,
+            message: "User Id is incorrect"
+        });
+        console.log("This got hit")
+        res.status(200).json({
+            success: true,
+            message: "User deleted successfully!!"
+        });
+    };
+    }catch(err){
+        console.error(err);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error occured while deleting the user"
+        })
+    }
+};
+
+export  {getAllUsers, getUser, createUser, updateUser, deleteUser};
