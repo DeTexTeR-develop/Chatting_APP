@@ -46,49 +46,58 @@ const getUser = async(req: Request, res: Response) : Promise<void> => {
 };
 
 const createUser = async (req: Request, res: Response) : Promise<void> => {
-    const {username, email, password} = req.body;
-    if(!username || !email || !password){
-        res.status(400).json({
+    try{
+        const {username, email, password} = req.body;
+        if(!username || !email || !password){
+            res.status(400).json({
+                success: false,
+                message: "Please provide all the fields"
+            });
+        };
+
+        const existingUser = await pool.query(
+            `
+            SELECT * FROM users
+            WHERE email=$1
+            `, [email]
+        );
+        
+        if(existingUser.rowCount && existingUser.rowCount> 0){
+            res.status(409).json({
+                success: false,
+                message: "User already exists"
+            });
+            return;
+        };
+
+        const saltRounds : number = 10;
+
+        const hashedPassword = await bcrypt.hash(password , saltRounds);
+
+        const newUser = await pool.query(
+            `
+            INSERT INTO users(
+                username,
+                email,
+                password
+                ) VALUES($1, $2, $3)
+            RETURNING id, username, email, created_at
+            `, 
+            [username, email, hashedPassword]
+        );
+
+        res.status(200).json({
+            success: true,
+            message: `User Created Successfully : ${JSON.stringify(newUser.rows[0])}`
+        });
+    }catch(err){
+        console.error(err)
+        res.status(500).json({
             success: false,
-            message: "Please provide all the fields"
+            message: "Internal Server Error occured during creating user"
         });
     };
-
-    const existingUser = await pool.query(
-        `
-        SELECT * FROM users
-        WHERE email=$1
-        `, [email]
-    );
     
-    if(existingUser.rowCount && existingUser.rowCount> 0){
-        res.status(409).json({
-            success: false,
-            message: "User already exists"
-        });
-        return;
-    };
-
-    const saltRounds : number = 10;
-
-    const hashedPassword = await bcrypt.hash(password , saltRounds);
-
-    const newUser = await pool.query(
-        `
-        INSERT INTO users(
-            username,
-            email,
-            password
-            ) VALUES($1, $2, $3)
-        RETURNING id, username, email, created_at
-        `, 
-        [username, email, hashedPassword]
-    );
-
-    res.status(200).json({
-        success: true,
-        message: `User Created Successfully : ${JSON.stringify(newUser.rows[0])}`
-    });
 };
 
 const updateUser = async (req: Request, res: Response): Promise<void> => {
