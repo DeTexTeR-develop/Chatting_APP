@@ -40,26 +40,53 @@ const getUser = async(req: Request, res: Response) : Promise<void> => {
     }
 };
 
-const updateUser = async(req : Request, res: Response) : Promise<void> => {
-    try{
-        const id = req.params.id;
-        const {username , email} = req.body;
-        const user = await pool.query(
-            `UPDATE users 
-             SET username=$1 ,
-                email=$2
-                WHERE id = $3
-                RETURNING *`, [username, email, id]);
-            res.status(200).json({
-                success: true,
-                message: `User Updated Successfully : ${JSON.stringify(user)}`}
-        );
-    }catch(err){
+const updateUser = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = req.params.id as string;
+        const { username, email } = req.body;
+        
+        const fields: string[] = [];
+        const values: string[] = [];
+
+        if (username) {
+            values.push(username);
+            fields.push(`username = $${values.length}`);
+        }
+        if (email) {
+            values.push(email);
+            fields.push(`email = $${values.length}`);
+        }
+        if (fields.length === 0) {
+            res.status(400).json({
+                success: false,
+                message: "No fields provided for update"
+            });
+            return;
+        };
+
+        values.push(id);
+        const query: string = `
+            UPDATE users
+            SET ${fields.join(", ")}
+            WHERE id = $${values.length}
+            RETURNING *
+        `;
+        console.log(query); 
+
+        const updatedUser = await pool.query(query, values);
+
+        res.status(200).json({
+            success: true,
+            user: updatedUser.rows[0]
+        });
+
+    } catch (err) {
         console.error(err);
         res.status(500).json({
             success: false,
-            message: "Internal Server Error Occured while updating the User."
+            message: "Internal Server Error while updating user"
         });
     }
 };
+
 export  {getAllUsers, getUser, updateUser};
