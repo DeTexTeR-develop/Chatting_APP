@@ -2,6 +2,62 @@ import { Request, Response } from "express";
 
 import { pool } from "../config/db";
 import bcrypt from "bcrypt";
+import jwt from 'jsonwebtoken';
+
+const loginUser = async(req : Request, res : Response) : Promise<void> => {
+    try{
+        const {email , password } = req.body;
+        const exsistingUser = await pool.query(
+            `
+            SELECT * FROM users
+            WHERE email = $1
+            `, [email]
+        );
+
+        if(exsistingUser.rows.length === 0) {
+            res.status(401).json({
+                success: false,
+                message: "Invalid Credentials"
+            });
+            return
+        };
+
+        const isMatched = await bcrypt.compare(
+            password,
+            exsistingUser.rows[0].password
+        );
+
+        if(!isMatched) {
+            res.status(401).json({
+                success: false,
+                message: "Invalid Credentials"
+            });
+            return
+        };
+
+        const token = jwt.sign({
+            id: exsistingUser.rows[0].id,
+            username: exsistingUser.rows[0].username,
+            email: exsistingUser.rows[0].email,
+        }, process.env.JWT_SECRET as string,
+        {
+            expiresIn: "2d"
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `Login Successfull : ${token}`
+        });
+
+    }catch(err){
+        console.error(err)
+        res.status(500).json({
+            success: false,
+            message: "Something went wrong while logging you in!!"
+        })
+    }
+    
+};
 
 const getAllUsers = async(req : Request, res : Response) : Promise<void> => {
     try{
@@ -182,4 +238,4 @@ const deleteUser = async(req: Request, res: Response) : Promise<void> => {
     }
 };
 
-export  {getAllUsers, getUser, createUser, updateUser, deleteUser};
+export  {loginUser, getAllUsers, getUser, createUser, updateUser, deleteUser};
