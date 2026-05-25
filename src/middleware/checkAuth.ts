@@ -3,15 +3,14 @@ import jwt from "jsonwebtoken";
 
 export const autheticateUser = (req: Request, res: Response, next: NextFunction) : void => {
     try{
-        const authHeader = req.headers.authorization;
-        if(!authHeader){
+        const token = req.cookies.token;
+        if(!token){
             res.status(401).json({
                 success: false,
                 message:"Token not provided"
             });
             return
-        }
-        const token = authHeader.split(" ")[1];
+        };
         
         const decoded = jwt.verify(
             token,
@@ -24,9 +23,9 @@ export const autheticateUser = (req: Request, res: Response, next: NextFunction)
 
     } catch(err){
         console.error(err)
-        res.status(500).json({
+        res.status(401).json({
             success: false,
-            message: "something went wrong while verifying the jwt token"
+            message: "User Login Failed"
         })
     }
     
