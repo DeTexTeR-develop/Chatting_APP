@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
+import { pool } from "../config/db";
 
-export const autheticateUser = (req: Request, res: Response, next: NextFunction) : void => {
+
+export const autheticateUser = async(req: Request, res: Response, next: NextFunction) : Promise<void> => {
     try{
         const token = req.cookies.token;
         if(!token){
@@ -15,7 +17,23 @@ export const autheticateUser = (req: Request, res: Response, next: NextFunction)
         const decoded = jwt.verify(
             token,
             process.env.JWT_SECRET as string
+        ) as JwtPayload;
+
+        const user = await pool.query(
+            `
+            SELECT * FROM users
+            WHERE id = $1
+            `,
+            [decoded.id ]
         );
+        if(user.rowCount === 0){
+            res.status(401).json({
+                success : false,
+                message : "Unauthorized"
+            })
+            return;
+        }
+        
 
         (req as any).user = decoded;
 
@@ -25,7 +43,7 @@ export const autheticateUser = (req: Request, res: Response, next: NextFunction)
         console.error(err)
         res.status(401).json({
             success: false,
-            message: "User Login Failed"
+            message: "Unauthorized"
         })
     }
     

@@ -45,11 +45,19 @@ const loginUser = async(req : Request, res : Response) : Promise<void> => {
             expiresIn: "2d"
         });
 
-        res.status(200).json({
-            success: true,
-            message: `Login Successfull : ${token}`
-        });
 
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: false,
+            sameSite: "strict",
+            maxAge: 2 * 24 * 60 * 60 * 1000 
+        })
+        .status(200)
+        .json({
+            success : true,
+            message: "User Logged In Successfully!!!"
+        });
+        
     }catch(err){
         console.error(err)
         res.status(500).json({
