@@ -1,10 +1,6 @@
 import { Request, Response } from "express";
 
 import { pool } from "../config/db";
-import bcrypt from "bcrypt";
-import jwt from 'jsonwebtoken';
-
-
 
 const getAllUsers = async(req : Request, res : Response) : Promise<void> => {
     try{

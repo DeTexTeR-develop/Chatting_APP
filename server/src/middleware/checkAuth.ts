@@ -26,14 +26,14 @@ export const autheticateUser = async(req: Request, res: Response, next: NextFunc
             `,
             [decoded.id ]
         );
+        
         if(user.rowCount === 0){
             res.status(401).json({
                 success : false,
                 message : "Unauthorized"
             })
             return;
-        }
-        
+        };
 
         (req as any).user = decoded;
 

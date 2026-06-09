@@ -20,6 +20,4 @@ app.use(express.json());
 app.use("/user", userRouter);
 app.use("/auth", authRouter);   
 
-app.listen(PORT, () => {
-    console.log(`Server Is Up And Running on ${PORT}!!`);
-});
+export default app;
