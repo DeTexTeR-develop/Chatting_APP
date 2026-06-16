@@ -5,7 +5,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 dotenv.config();
 
-
+import conversationsRouter from "./routes/conversation";
 import userRouter from "./routes/user";
 import authRouter from "./routes/auth";
 
@@ -27,5 +27,6 @@ app.use(express.json());
 
 app.use("/user", userRouter);
 app.use("/auth", authRouter);   
+app.use("/chat", conversationsRouter);
 
 export default app;

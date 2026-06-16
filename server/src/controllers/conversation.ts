@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../config/db";
 
+
 const createConversation = async (req: Request, res: Response) => {
     try {
         const currentUserId = (req as any).user.id;
@@ -61,6 +62,119 @@ const createConversation = async (req: Request, res: Response) => {
         })
     }
 
-}
+};
 
-export default { createConversation };
+const getConversations = async (req: Request, res: Response) => {
+    try{
+        const id = (req as any).user.id;
+        const allConversationsOfUser = await pool.query(
+            `
+            SELECT * FROM conversations
+            WHERE user1_id=$1 OR user2_id=$1
+            `, [id]
+        );
+
+        if(!allConversationsOfUser || allConversationsOfUser.rows.length <= 0){
+            return res.status(400).json({
+                success: false,
+                message: "Something went wrong while getting the Conversations"
+            });
+        };
+
+        return res.status(200).json({
+            success: true,
+            message: allConversationsOfUser.rows
+        });
+    }catch(err) {
+        console.error(err);
+        res.status(500).json(
+            {
+                success: false,
+                message: "Something went wrong while getting the conversations"
+            }
+        )
+    }
+    return
+};
+
+const getMessage = async(req: Request, res: Response) => {
+    try{
+        const conversationId = req.params.id;
+
+        const message = await pool.query(
+            `
+            SELECT * FROM messages
+            WHERE conversation_id=$1
+            `, [conversationId]
+        );
+
+        if(!message || message.rows.length <=0) {
+            return res.status(400).json({
+                success: false,
+                message: "Couldn't get messages at the moment please try again later"
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: message.rows[0]
+        });
+
+    }catch(err){
+        console.error(err)
+        res.status(500).json({
+            success: false,
+            message: "Something went wrong while getting the messages"
+        })
+    }
+}
+const sendMessage = async(req: Request, res: Response) => {
+    try{
+    const senderId = (req as any).user.id;
+        const conversationId = req.params.id;
+        const messageContent = req.body.content;
+
+        if(!messageContent) {
+            console.error("Somerthing went wron while sending message")
+            return res.status(400).json({
+                success: false,
+                message: "message content is requried"
+            });
+        };
+        if(!conversationId){
+            console.error("Somerthing went wron while sending message")
+            return res.status(400).json({
+                success: false,
+                message: "conversation id is required"
+            });
+        };
+
+
+        const message = await pool.query(
+            `
+            INSERT INTO messages
+            (
+            content, conversation_id, sender_id
+            ) VALUES( $1, $2, $3) RETURNING *
+            `, [messageContent, conversationId, senderId]
+        );
+
+        if(!message || message.rows.length <=0){
+            return res.status(400).json({
+                success : false,
+                message: "Couldn't send message please try agian later"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: message.rows[0]
+        });
+    }catch(err){
+        console.error(err)
+        res.status(500).json({
+            success: false,
+            message: "Something went wrong while sending message"
+        })
+    }
+}
+export  { createConversation , getConversations, getMessage , sendMessage};
