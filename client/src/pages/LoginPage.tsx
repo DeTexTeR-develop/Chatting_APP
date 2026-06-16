@@ -42,11 +42,14 @@ export function LoginPage(): React.JSX.Element {
       const loginResult = await authService.login({ email, password });
 
       if (loginResult.success) {
-        // Login succeeded — fetch the current user's data to populate AuthContext
+        // Login succeeded — fetch the current user's data to populate AuthContext.
+        // The server returns { success: true, users: [...] } at the top level,
+        // not nested under `data`, so we cast and read directly.
         const meResult = await userService.getMe();
+        const raw = meResult as unknown as { success: boolean; users?: Array<{ id: number; username: string; email: string; role?: string; created_at: string }> };
 
-        if (meResult.success && meResult.data && meResult.data.users.length > 0) {
-          const currentUser = meResult.data.users[0];
+        if (raw.success && raw.users && raw.users.length > 0) {
+          const currentUser = raw.users[0];
           setUser({
             id: currentUser.id,
             username: currentUser.username,
@@ -55,7 +58,7 @@ export function LoginPage(): React.JSX.Element {
           });
         }
 
-        navigate("/dashboard");
+        navigate("/conversations");
       } else {
         // Determine error message based on what the server returned.
         // authService normalises HTTP errors but may still return success: false.

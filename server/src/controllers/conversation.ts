@@ -106,18 +106,13 @@ const getMessage = async(req: Request, res: Response) => {
             `
             SELECT * FROM messages
             WHERE conversation_id=$1
+            ORDER BY created_at ASC
             `, [conversationId]
         );
 
-        if(!message || message.rows.length <=0) {
-            return res.status(400).json({
-                success: false,
-                message: "Couldn't get messages at the moment please try again later"
-            });
-        }
         res.status(200).json({
             success: true,
-            message: message.rows[0]
+            messages: message.rows
         });
 
     }catch(err){
@@ -159,8 +154,6 @@ const sendMessage = async(req: Request, res: Response) => {
             `, [messageContent, conversationId, senderId]
         );
 
-
-
         if(!message || message.rows.length <=0){
             return res.status(400).json({
                 success : false,
@@ -168,14 +161,22 @@ const sendMessage = async(req: Request, res: Response) => {
             });
         };
 
+        // Fetch the sender's username to include in the socket payload
+        const senderInfo = await pool.query(
+            `SELECT username FROM users WHERE id = $1`, [senderId]
+        );
+        const sender_username = senderInfo.rows[0]?.username ?? null;
+
+        const messageWithSender = { ...message.rows[0], sender_username };
+
         const io = getIO();
         io.to("conversation:" + conversationId).emit("receive_message",{
-            message: message.rows[0]
+            message: messageWithSender
         });
 
         res.status(200).json({
             success: true,
-            message: message.rows[0]
+            message: messageWithSender
         });
     }catch(err){
         console.error(err)

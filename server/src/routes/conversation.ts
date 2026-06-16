@@ -12,8 +12,8 @@ import {
 
 router.get('/', autheticateUser, getConversations);
 router.post('/', autheticateUser, createConversation);
-router.get('/:id/message', autheticateUser, getMessage);
-router.post('/:id/message', autheticateUser, sendMessage);
+router.get('/:id/messages', autheticateUser, getMessage);
+router.post('/:id/messages', autheticateUser, sendMessage);
 
 
 export default router;

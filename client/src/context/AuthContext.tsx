@@ -45,9 +45,12 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
 
         if (cancelled) return;
 
-        if (result.success && result.data && result.data.users.length > 0) {
-          // Use the first user as the current authenticated user
-          const currentUser = result.data.users[0];
+        // Server returns { success: true, users: [...] } at the top level,
+        // not nested under `data`.
+        const raw = result as unknown as { success: boolean; users?: Array<{ id: number; username: string; email: string; role?: string; created_at: string }> };
+
+        if (raw.success && raw.users && raw.users.length > 0) {
+          const currentUser = raw.users[0];
           dispatch({
             type: "SET_USER",
             payload: {
@@ -58,7 +61,6 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
             },
           });
         } else {
-          // 401 is handled globally by apiClient, but also handle any non-success here
           dispatch({ type: "CLEAR_USER" });
         }
       } catch {

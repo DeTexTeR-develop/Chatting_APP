@@ -15,7 +15,8 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
     cors: {
-        origin: "*"
+        origin: ["http://localhost:5173", "http://localhost:5174"],
+        credentials: true
     }
 });
 
@@ -44,7 +45,7 @@ io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
     socket.on("join_conversation", (conversationId: string) => {
-        socket.join("conversation: " + conversationId );
+        socket.join("conversation:" + conversationId );
         console.log(`User ${socket.data.user.username} joined conversation: ${conversationId}`);
     })
 

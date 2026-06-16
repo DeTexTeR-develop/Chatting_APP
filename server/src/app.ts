@@ -12,11 +12,9 @@ import authRouter from "./routes/auth";
 
 const app = express();
 
-const PORT = Number(process.env.PORT) || 8001;
-
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "http://localhost:5174",
     credentials: true,
   })
 );
