@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { pool } from "../config/db";
+import { getIO } from "../sockets/socket";
 
 
 const createConversation = async (req: Request, res: Response) => {
@@ -158,12 +159,19 @@ const sendMessage = async(req: Request, res: Response) => {
             `, [messageContent, conversationId, senderId]
         );
 
+
+
         if(!message || message.rows.length <=0){
             return res.status(400).json({
                 success : false,
                 message: "Couldn't send message please try agian later"
             });
-        }
+        };
+
+        const io = getIO();
+        io.to("conversation:" + conversationId).emit("receive_message",{
+            message: message.rows[0]
+        });
 
         res.status(200).json({
             success: true,

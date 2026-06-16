@@ -2,6 +2,7 @@ import app from "./app";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import jwt from 'jsonwebtoken';
+import { setIO } from "./sockets/socket";
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -17,6 +18,8 @@ const io = new Server(httpServer, {
         origin: "*"
     }
 });
+
+setIO(io);
 
 io.use(async(socket, next) => {
     try{
@@ -39,6 +42,11 @@ io.use(async(socket, next) => {
 
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
+
+    socket.on("join_conversation", (conversationId: string) => {
+        socket.join("conversation: " + conversationId );
+        console.log(`User ${socket.data.user.username} joined conversation: ${conversationId}`);
+    })
 
     socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
