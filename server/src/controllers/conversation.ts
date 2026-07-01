@@ -161,7 +161,6 @@ const sendMessage = async(req: Request, res: Response) => {
             });
         };
 
-        // Fetch the sender's username to include in the socket payload
         const senderInfo = await pool.query(
             `SELECT username FROM users WHERE id = $1`, [senderId]
         );

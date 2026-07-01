@@ -43,9 +43,19 @@ export function ChatPage(): React.JSX.Element {
   useEffect(() => {
     if (!conversationId) return;
 
-    if (!socket.connected) socket.connect();
+    function joinRoom() {
+      socket.emit("join_conversation", conversationId!);
+    }
 
-    socket.emit("join_conversation", conversationId);
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      // Already connected — join immediately
+      joinRoom();
+    }
+
+    // Re-join if socket reconnects (e.g. after auth completes)
+    socket.on("connect", joinRoom);
 
     function onReceiveMessage(data: { message: MessageRow }) {
       setMessages((prev) => [...prev, data.message]);
@@ -54,6 +64,7 @@ export function ChatPage(): React.JSX.Element {
     socket.on("receive_message", onReceiveMessage);
 
     return () => {
+      socket.off("connect", joinRoom);
       socket.off("receive_message", onReceiveMessage);
     };
   }, [conversationId]);

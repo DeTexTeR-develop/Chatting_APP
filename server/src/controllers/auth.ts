@@ -76,6 +76,7 @@ const createUser = async (req: Request, res: Response) : Promise<void> => {
                 success: false,
                 message: "Please provide all the fields"
             });
+            return;
         };
 
         const existingUser = await pool.query(
