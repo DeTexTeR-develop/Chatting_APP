@@ -126,7 +126,7 @@ export function ConversationsPage(): React.JSX.Element {
                 }}
               >
                 <span style={{ fontWeight: 500 }}>
-                  Chat with user {getOtherUserId(conv)}
+                  {conv.other_username ?? `User ${getOtherUserId(conv)}`}
                 </span>
                 <span style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
                   {new Date(conv.created_at).toLocaleDateString()}

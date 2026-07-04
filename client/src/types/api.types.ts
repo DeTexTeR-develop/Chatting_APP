@@ -58,6 +58,7 @@ export interface ConversationRow {
   user1_id: string;
   user2_id: string;
   created_at: string;
+  other_username?: string;
 }
 
 /**

@@ -19,7 +19,7 @@ const createConversation = async (req: Request, res: Response) => {
             return res.status(400).json({
                 message: "Cannot create conversation with yourself",
                 success: false
-            })
+            });
         };
 
         const existingConveration = await pool.query(
@@ -60,42 +60,40 @@ const createConversation = async (req: Request, res: Response) => {
         res.status(500).json({
             success: false,
             message: "something went wrong while creating conversation"
-        })
-    }
-
+        });
+    };
 };
 
 const getConversations = async (req: Request, res: Response) => {
-    try{
+    try {
         const id = (req as any).user.id;
         const allConversationsOfUser = await pool.query(
             `
-            SELECT * FROM conversations
-            WHERE user1_id=$1 OR user2_id=$1
+            SELECT
+              c.*,
+              CASE
+                WHEN c.user1_id = $1 THEN u2.username
+                ELSE u1.username
+              END AS other_username
+            FROM conversations c
+            JOIN users u1 ON u1.id = c.user1_id
+            JOIN users u2 ON u2.id = c.user2_id
+            WHERE c.user1_id = $1 OR c.user2_id = $1
+            ORDER BY c.created_at DESC
             `, [id]
         );
 
-        if(!allConversationsOfUser || allConversationsOfUser.rows.length <= 0){
-            return res.status(400).json({
-                success: false,
-                message: "Something went wrong while getting the Conversations"
-            });
-        };
-
         return res.status(200).json({
             success: true,
-            message: allConversationsOfUser.rows
+            conversations: allConversationsOfUser.rows
         });
-    }catch(err) {
+    } catch(err) {
         console.error(err);
-        res.status(500).json(
-            {
-                success: false,
-                message: "Something went wrong while getting the conversations"
-            }
-        )
+        res.status(500).json({
+            success: false,
+            message: "Something went wrong while getting the conversations"
+        });
     }
-    return
 };
 
 const getMessage = async(req: Request, res: Response) => {
@@ -184,5 +182,5 @@ const sendMessage = async(req: Request, res: Response) => {
             message: "Something went wrong while sending message"
         })
     }
-}
+};
 export  { createConversation , getConversations, getMessage , sendMessage};

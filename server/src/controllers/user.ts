@@ -119,33 +119,34 @@ const updateUser = async (req: Request, res: Response): Promise<void> => {
 const deleteUser = async(req: Request, res: Response) : Promise<void> => {
     try{
         const id = req.params.id;
-    const deletedUser = await pool.query(
-        `
-        DELETE FROM users
-        WHERE id = $1
-        RETURNING *
-        `
-        ,[id]
-    );
-    
-        if(deletedUser.rowCount === 0){
-        res.status(400).json({
-            success: false,
-            message: "User Id is incorrect"
-        });
-        console.log("This got hit")
-        res.status(200).json({
-            success: true,
-            message: "User deleted successfully!!"
-        });
-    };
-    }catch(err){
-        console.error(err);
-        res.status(500).json({
-            success: false,
-            message: "Internal Server Error occured while deleting the user"
-        })
-    }
+        const deletedUser = await pool.query(
+            `
+            DELETE FROM users
+            WHERE id = $1
+            RETURNING *
+            `
+            ,[id]
+        );
+                if(deletedUser.rowCount === 0){
+                    res.status(400).json({
+                        success: false,
+                        message: "User Id is incorrect"
+                });
+
+            const key = `user:${id}`;
+            await redisClient.del(key);
+            res.status(200).json({
+                success: true,
+                message: "User deleted successfully!!"
+            });
+        };
+        }catch(err){
+            console.error(err);
+            res.status(500).json({
+                success: false,
+                message: "Internal Server Error occured while deleting the user"
+            })
+        }
 };
 
 export  {getAllUsers, getUser, updateUser, deleteUser};
