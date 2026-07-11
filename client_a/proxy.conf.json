@@ -1,0 +1,19 @@
+{
+  "/auth": {
+    "target": "http://localhost:8002",
+    "secure": false
+  },
+  "/user": {
+    "target": "http://localhost:8002",
+    "secure": false
+  },
+  "/chat": {
+    "target": "http://localhost:8002",
+    "secure": false
+  },
+  "/socket.io": {
+    "target": "http://localhost:8002",
+    "secure": false,
+    "ws": true
+  }
+}

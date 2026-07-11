@@ -1,0 +1,59 @@
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { lastValueFrom } from 'rxjs';
+import { environment } from '../../../environments/environment';
+import type { ConversationRow, MessageRow } from '../models/api.models';
+
+@Injectable({ providedIn: 'root' })
+export class ChatService {
+  private readonly base = environment.apiBaseUrl;
+
+  constructor(private http: HttpClient) {}
+
+  async getConversations(): Promise<{ success: boolean; conversations?: ConversationRow[] }> {
+    return lastValueFrom(
+      this.http.get<{ success: boolean; conversations?: ConversationRow[] }>(
+        `${this.base}/chat`,
+        { withCredentials: true }
+      )
+    );
+  }
+
+  async createConversation(userId: number | string): Promise<{ success: boolean; conversation?: ConversationRow; message?: string }> {
+    try {
+      return await lastValueFrom(
+        this.http.post<{ success: boolean; conversation?: ConversationRow; message?: string }>(
+          `${this.base}/chat`,
+          { userIdForSecond: userId },
+          { withCredentials: true }
+        )
+      );
+    } catch (err: unknown) {
+      const e = err as { error?: { message?: string } };
+      return { success: false, message: e?.error?.message ?? 'Failed to create conversation.' };
+    }
+  }
+
+  async getMessages(conversationId: number | string): Promise<{ success: boolean; messages?: MessageRow[] }> {
+    return lastValueFrom(
+      this.http.get<{ success: boolean; messages?: MessageRow[] }>(
+        `${this.base}/chat/${conversationId}/messages`,
+        { withCredentials: true }
+      )
+    );
+  }
+
+  async sendMessage(conversationId: number | string, content: string): Promise<{ success: boolean; message?: MessageRow }> {
+    try {
+      return await lastValueFrom(
+        this.http.post<{ success: boolean; message?: MessageRow }>(
+          `${this.base}/chat/${conversationId}/messages`,
+          { content },
+          { withCredentials: true }
+        )
+      );
+    } catch {
+      return { success: false };
+    }
+  }
+}

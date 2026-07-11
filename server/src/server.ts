@@ -15,7 +15,7 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
     cors: {
-        origin: ["http://localhost:5173"],
+        origin: ["http://localhost:5173", "http://localhost:4200"],
         credentials: true
     }
 });
@@ -41,7 +41,6 @@ io.on("connection", async(socket) => {
     const onlineUsers = await getAllOnlineUsers();
     socket.emit("online_users", {userIds: onlineUsers});
 
-    // Allow client to re-request the online list at any time
     socket.on("get_online_users", async () => {
         const onlineUsers = await getAllOnlineUsers();
         socket.emit("online_users", { userIds: onlineUsers });
