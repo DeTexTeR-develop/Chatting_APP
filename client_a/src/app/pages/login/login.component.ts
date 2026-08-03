@@ -2,7 +2,6 @@ import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { SocketService } from '../../core/services/socket.service';
 
 @Component({
   selector: 'app-login',
@@ -95,7 +94,6 @@ export class LoginComponent {
 
   constructor(
     private auth: AuthService,
-    private socket: SocketService,
     private router: Router
   ) {}
 
@@ -108,7 +106,6 @@ export class LoginComponent {
     this.loading.set(false);
 
     if (res.success) {
-      this.socket.connect();
       this.router.navigate(['/conversations']);
     } else {
       const msg = res.message ?? '';

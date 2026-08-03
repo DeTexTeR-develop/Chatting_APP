@@ -36,16 +36,16 @@ export class SocketService {
     this.socket.on('receive_message', (data: unknown) => {
       this.message$.next(data);
     });
+
+    this.socket.on('connect', () => {
+      this.socket.emit('get_online_users');
+    });
   }
 
   connect(): void {
     if (!this.socket.connected) {
       this.socket.connect();
     }
-    // Re-request online list after connecting
-    this.socket.on('connect', () => {
-      this.socket.emit('get_online_users');
-    });
   }
 
   disconnect(): void {

@@ -49,7 +49,6 @@ const getUser = async(req: Request, res: Response)  => {
         console.log("SET RESULT:", redisResult);
 
         const value = await redisClient.get(key);
-        console.log(value);
 
         res.status(200).json({
             success: true,

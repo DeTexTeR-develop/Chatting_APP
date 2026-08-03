@@ -25,13 +25,12 @@ setIO(io);
 io.use(verifySocketConnection);
 
 io.on("connection", async(socket) => {
-    console.log("User connected:", socket.id);
-
     const userId = socket.data.user.id;
 
-    await setUserOnline(userId);
-    io.emit("user_online", {userId});
-
+    const userOnline = await setUserOnline(userId, socket.id);
+    if(userOnline){
+        io.emit("user_online", {userId});
+    }
 
     socket.on("join_conversation", (conversationId: string) => {
         socket.join("conversation:" + conversationId );
@@ -47,8 +46,11 @@ io.on("connection", async(socket) => {
     });
 
     socket.on("disconnect", async () => {
-    await setUserOffline(userId);
-    io.emit("user_offline", { userId });
+        const userOffline = await setUserOffline(userId, socket.id);
+        if(userOffline){
+            io.emit("user_offline", { userId });
+            console.log("User Went Offline ")
+        };
   });
 });
 
