@@ -1,5 +1,5 @@
 import { Socket } from "socket.io";
-export default function typingHandler(socket: Socket) {
+export default function registerTypingHandler(socket: Socket) {
     socket.on("conversation:typing:start", ({ conversationId }: { conversationId: string }) => {
         const userId  = socket.data.user.id;
         socket.to(`conversation:${conversationId}`).emit(

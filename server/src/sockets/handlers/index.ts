@@ -4,6 +4,7 @@ import { setIO } from "../socket";
 import verifySocketConnection from "../../middleware/socketVerification";
 import registerPresenceHandler from "./presence.handler";
 import registerConversationHandler from "./conversationRoom.handler";
+import registerTypingHandler from "./typingIndicator.handler";
 export default function initializeSocket(httpServer: HttpServer) {
 
     const io = new Server(httpServer, {
@@ -17,6 +18,7 @@ export default function initializeSocket(httpServer: HttpServer) {
     io.use(verifySocketConnection);
     io.on("connection", async (socket) => {
         await registerPresenceHandler(io, socket);
-        registerConversationHandler(socket)
+        registerConversationHandler(socket);
+        registerTypingHandler(socket);
     });
 };

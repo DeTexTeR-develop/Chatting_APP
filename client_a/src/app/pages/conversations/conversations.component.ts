@@ -142,7 +142,8 @@ export class ConversationsComponent implements OnInit, OnDestroy {
   ) {}
 
   async ngOnInit(): Promise<void> {
-    // Presence subscriptions
+    // onlineUsers$ is a BehaviorSubject — subscriber immediately gets the current list,
+    // then stays updated. userOnline$/userOffline$ apply deltas on top of it.
     this.subs.push(
       this.socket.onlineUsers$.subscribe(ids => this.onlineUserIds.set(new Set(ids))),
       this.socket.userOnline$.subscribe(id => {

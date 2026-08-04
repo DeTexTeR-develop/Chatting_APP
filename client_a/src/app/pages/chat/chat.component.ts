@@ -28,6 +28,17 @@ import type { MessageRow } from '../../core/models/api.models';
             </div>
           }
         }
+        <!-- Typing indicator -->
+        @if (otherIsTyping()) {
+          <div class="bubble-wrap">
+            <span class="sender">{{ typingUsername() }}</span>
+            <div class="bubble typing-bubble">
+              <span class="dot-pulse"></span>
+              <span class="dot-pulse"></span>
+              <span class="dot-pulse"></span>
+            </div>
+          </div>
+        }
         <div #bottomAnchor></div>
       </div>
 
@@ -44,6 +55,8 @@ import type { MessageRow } from '../../core/models/api.models';
           name="msg"
           [disabled]="sending()"
           autocomplete="off"
+          (input)="onInput()"
+          (blur)="onBlur()"
         />
         <button type="submit" class="btn btn-primary" [disabled]="sending() || !inputText.trim()">
           {{ sending() ? '…' : 'Send' }}
@@ -100,6 +113,27 @@ import type { MessageRow } from '../../core/models/api.models';
       color: var(--text-inverse);
       border-color: var(--accent);
     }
+    .typing-bubble {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0.5rem 0.75rem;
+      min-width: 48px;
+    }
+    .dot-pulse {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .dot-pulse:nth-child(2) { animation-delay: 0.2s; }
+    .dot-pulse:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes pulse {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
+      40% { opacity: 1; transform: scale(1); }
+    }
     .send-error {
       margin: 0 1.5rem 0.5rem;
     }
@@ -133,9 +167,13 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   inputText = '';
   sending = signal(false);
   sendError = signal<string | null>(null);
+  otherIsTyping = signal(false);
+  typingUsername = signal<string>('');
 
   private subs: Subscription[] = [];
   private shouldScroll = false;
+  private typingTimeout: ReturnType<typeof setTimeout> | null = null;
+  private isTyping = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -154,9 +192,6 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.shouldScroll = true;
 
     // Join socket room
-    if (!this.socket.isConnected()) {
-      // socket will be connected by auth guard flow; just request join
-    }
     this.socket.joinConversation(this.conversationId);
 
     // Listen for incoming messages
@@ -165,6 +200,22 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         const d = data as { message: MessageRow };
         this.messages.update(prev => [...prev, d.message]);
         this.shouldScroll = true;
+      }),
+
+      // Typing indicator — someone else started typing in this conversation
+      this.socket.typingStart$.subscribe(event => {
+        if (event.conversationId === this.conversationId) {
+          const lastMsg = this.messages().find(m => m.sender_id !== String(this.auth.user()?.id));
+          this.typingUsername.set(lastMsg?.sender_username ?? 'Someone');
+          this.otherIsTyping.set(true);
+          this.shouldScroll = true;
+        }
+      }),
+
+      this.socket.typingStop$.subscribe(event => {
+        if (event.conversationId === this.conversationId) {
+          this.otherIsTyping.set(false);
+        }
       })
     );
   }
@@ -178,6 +229,48 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   ngOnDestroy(): void {
     this.subs.forEach(s => s.unsubscribe());
+    // Make sure we stop typing when leaving the chat
+    if (this.isTyping) {
+      this.socket.emitTypingStop(this.conversationId);
+    }
+    if (this.typingTimeout) {
+      clearTimeout(this.typingTimeout);
+    }
+  }
+
+  onInput(): void {
+    if (!this.isTyping && this.inputText.trim().length > 0) {
+      this.isTyping = true;
+      this.socket.emitTypingStart(this.conversationId);
+    }
+
+    // Reset the stop timer on every keystroke
+    if (this.typingTimeout) {
+      clearTimeout(this.typingTimeout);
+    }
+
+    if (this.inputText.trim().length === 0) {
+      this.stopTyping();
+      return;
+    }
+
+    // Auto-stop after 2s of inactivity
+    this.typingTimeout = setTimeout(() => this.stopTyping(), 2000);
+  }
+
+  onBlur(): void {
+    this.stopTyping();
+  }
+
+  private stopTyping(): void {
+    if (this.isTyping) {
+      this.isTyping = false;
+      this.socket.emitTypingStop(this.conversationId);
+    }
+    if (this.typingTimeout) {
+      clearTimeout(this.typingTimeout);
+      this.typingTimeout = null;
+    }
   }
 
   isOwn(msg: MessageRow): boolean {
@@ -187,6 +280,9 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   async send(): Promise<void> {
     const content = this.inputText.trim();
     if (!content || this.sending()) return;
+
+    // Stop typing when sending
+    this.stopTyping();
 
     this.sendError.set(null);
     this.sending.set(true);
