@@ -32,7 +32,7 @@ const createConversation = async (req: Request, res: Response) => {
             `, [currentUserId, userIdForSecond]
         );
 
-        if(existingConveration && existingConveration.rows.length > 0){
+        if (existingConveration && existingConveration.rows.length > 0) {
             return res.status(200).json({
                 success: true,
                 message: "Conversation already exists",
@@ -87,7 +87,7 @@ const getConversations = async (req: Request, res: Response) => {
             success: true,
             conversations: allConversationsOfUser.rows
         });
-    } catch(err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({
             success: false,
@@ -96,45 +96,60 @@ const getConversations = async (req: Request, res: Response) => {
     }
 };
 
-const getMessage = async(req: Request, res: Response) => {
-    try{
-        const conversationId = req.params.id;
+    const getMessage = async (req: Request, res: Response) => {
+        try {
+            const limit = Math.min(Number(req.query.limit) || 30, 100);
+            const cursor = req.query.created_at;
+            const conversationId = req.params.id;
+            let message;
+            if (!cursor) {
+                message = await pool.query(
+                    `
+                    SELECT * FROM messages
+                    WHERE conversation_id=$1
+                    ORDER BY created_at DESC
+                    LIMIT $2
+                    `, [conversationId, limit]
+                )
+            }else{
+                message = await pool.query(
+                `
+                SELECT * FROM messages
+                WHERE conversation_id=$1
+                AND created_at < $3
+                ORDER BY created_at DESC
+                LIMIT $2
+                `, [conversationId, limit, cursor]
+            );
+            };
 
-        const message = await pool.query(
-            `
-            SELECT * FROM messages
-            WHERE conversation_id=$1
-            ORDER BY created_at ASC
-            `, [conversationId]
-        );
+            res.status(200).json({
+                success: true,
+                messages: message.rows
+            });
 
-        res.status(200).json({
-            success: true,
-            messages: message.rows
-        });
-
-    }catch(err){
-        console.error(err)
-        res.status(500).json({
-            success: false,
-            message: "Something went wrong while getting the messages"
-        })
+        } catch (err) {
+            console.error(err)
+            res.status(500).json({
+                success: false,
+                message: "Something went wrong while getting the messages"
+            })
+        }
     }
-}
-const sendMessage = async(req: Request, res: Response) => {
-    try{
-    const senderId = (req as any).user.id;
+const sendMessage = async (req: Request, res: Response) => {
+    try {
+        const senderId = (req as any).user.id;
         const conversationId = req.params.id;
         const messageContent = req.body.content;
 
-        if(!messageContent) {
+        if (!messageContent) {
             console.error("Somerthing went wron while sending message")
             return res.status(400).json({
                 success: false,
                 message: "message content is requried"
             });
         };
-        if(!conversationId){
+        if (!conversationId) {
             console.error("Somerthing went wrong while sending message")
             return res.status(400).json({
                 success: false,
@@ -152,9 +167,9 @@ const sendMessage = async(req: Request, res: Response) => {
             `, [messageContent, conversationId, senderId]
         );
 
-        if(!message || message.rows.length <=0){
+        if (!message || message.rows.length <= 0) {
             return res.status(400).json({
-                success : false,
+                success: false,
                 message: "Couldn't send message please try agian later"
             });
         };
@@ -167,7 +182,7 @@ const sendMessage = async(req: Request, res: Response) => {
         const messageWithSender = { ...message.rows[0], sender_username };
 
         const io = getIO();
-        io.to("conversation:" + conversationId).emit("receive_message",{
+        io.to("conversation:" + conversationId).emit("receive_message", {
             message: messageWithSender
         });
 
@@ -175,7 +190,7 @@ const sendMessage = async(req: Request, res: Response) => {
             success: true,
             message: messageWithSender
         });
-    }catch(err){
+    } catch (err) {
         console.error(err)
         res.status(500).json({
             success: false,
@@ -183,4 +198,4 @@ const sendMessage = async(req: Request, res: Response) => {
         })
     }
 };
-export  { createConversation , getConversations, getMessage , sendMessage};
+export { createConversation, getConversations, getMessage, sendMessage };
