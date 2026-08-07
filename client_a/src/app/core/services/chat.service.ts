@@ -34,11 +34,18 @@ export class ChatService {
     }
   }
 
-  async getMessages(conversationId: number | string): Promise<{ success: boolean; messages?: MessageRow[] }> {
+  async getMessages(
+    conversationId: number | string,
+    options: { cursor?: string; limit?: number } = {}
+  ): Promise<{ success: boolean; messages?: MessageRow[] }> {
+    const params: Record<string, string> = {};
+    if (options.cursor) params['created_at'] = options.cursor;
+    if (options.limit)  params['limit']      = String(options.limit);
+
     return lastValueFrom(
       this.http.get<{ success: boolean; messages?: MessageRow[] }>(
         `${this.base}/chat/${conversationId}/messages`,
-        { withCredentials: true }
+        { withCredentials: true, params }
       )
     );
   }

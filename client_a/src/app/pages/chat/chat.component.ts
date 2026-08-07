@@ -7,6 +7,8 @@ import { AuthService } from '../../core/services/auth.service';
 import { SocketService } from '../../core/services/socket.service';
 import type { MessageRow } from '../../core/models/api.models';
 
+const PAGE_LIMIT = 30;
+
 @Component({
   selector: 'app-chat',
   standalone: true,
@@ -16,6 +18,16 @@ import type { MessageRow } from '../../core/models/api.models';
 
       <!-- Messages -->
       <div class="messages" #scrollContainer>
+
+        <!-- Load more button -->
+        @if (hasMore()) {
+          <div class="load-more-wrap">
+            <button class="btn load-more-btn" (click)="loadOlder()" [disabled]="loadingMore()">
+              {{ loadingMore() ? 'Loading…' : 'Load older messages' }}
+            </button>
+          </div>
+        }
+
         @if (loading()) {
           <span class="spinner"></span>
         } @else if (messages().length === 0) {
@@ -28,6 +40,7 @@ import type { MessageRow } from '../../core/models/api.models';
             </div>
           }
         }
+
         <!-- Typing indicator -->
         @if (otherIsTyping()) {
           <div class="bubble-wrap">
@@ -77,6 +90,27 @@ import type { MessageRow } from '../../core/models/api.models';
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+    }
+    .load-more-wrap {
+      display: flex;
+      justify-content: center;
+      padding: 0.25rem 0 0.5rem;
+    }
+    .load-more-btn {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer;
+    }
+    .load-more-btn:hover:not(:disabled) {
+      background: var(--bg-subtle);
+    }
+    .load-more-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
     }
     .empty {
       color: var(--text-muted);
@@ -159,42 +193,56 @@ import type { MessageRow } from '../../core/models/api.models';
   `]
 })
 export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
-  @ViewChild('bottomAnchor') bottomAnchor!: ElementRef;
+  @ViewChild('bottomAnchor')   bottomAnchor!:   ElementRef<HTMLElement>;
+  @ViewChild('scrollContainer') scrollContainer!: ElementRef<HTMLElement>;
 
   conversationId = '';
-  messages = signal<MessageRow[]>([]);
-  loading = signal(true);
-  inputText = '';
-  sending = signal(false);
-  sendError = signal<string | null>(null);
-  otherIsTyping = signal(false);
+  messages    = signal<MessageRow[]>([]);
+  loading     = signal(true);
+  loadingMore = signal(false);
+  hasMore     = signal(false);
+  inputText   = '';
+  sending     = signal(false);
+  sendError   = signal<string | null>(null);
+  otherIsTyping  = signal(false);
   typingUsername = signal<string>('');
 
+  private cursor: string | undefined = undefined;
   private subs: Subscription[] = [];
-  private shouldScroll = false;
+  private shouldScroll     = false;
+  private shouldKeepScroll = false;
+  private scrollHeightBeforeLoad = 0;
   private typingTimeout: ReturnType<typeof setTimeout> | null = null;
   private isTyping = false;
 
   constructor(
-    private route: ActivatedRoute,
-    private chat: ChatService,
-    private auth: AuthService,
+    private route:  ActivatedRoute,
+    private chat:   ChatService,
+    private auth:   AuthService,
     private socket: SocketService
   ) {}
 
   async ngOnInit(): Promise<void> {
     this.conversationId = this.route.snapshot.paramMap.get('id') ?? '';
 
-    // Load history
-    const res = await this.chat.getMessages(this.conversationId);
-    this.messages.set(res.messages ?? []);
+    // Initial page — no cursor, server returns newest PAGE_LIMIT messages DESC
+    const res = await this.chat.getMessages(this.conversationId, { limit: PAGE_LIMIT });
+    const raw = res.messages ?? [];
+
+    // Server returns DESC; reverse to oldest→newest for display
+    this.messages.set([...raw].reverse());
+    this.hasMore.set(raw.length === PAGE_LIMIT);
+
+    // Cursor = created_at of the oldest message (last item in DESC array)
+    if (raw.length > 0) {
+      this.cursor = raw[raw.length - 1].created_at;
+    }
+
     this.loading.set(false);
     this.shouldScroll = true;
 
-    // Join socket room
     this.socket.joinConversation(this.conversationId);
 
-    // Listen for incoming messages
     this.subs.push(
       this.socket.message$.subscribe((data: unknown) => {
         const d = data as { message: MessageRow };
@@ -202,11 +250,10 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         this.shouldScroll = true;
       }),
 
-      // Typing indicator — someone else started typing in this conversation
       this.socket.typingStart$.subscribe(event => {
         if (event.conversationId === this.conversationId) {
-          const lastMsg = this.messages().find(m => m.sender_id !== String(this.auth.user()?.id));
-          this.typingUsername.set(lastMsg?.sender_username ?? 'Someone');
+          const other = this.messages().find(m => m.sender_id !== String(this.auth.user()?.id));
+          this.typingUsername.set(other?.sender_username ?? 'Someone');
           this.otherIsTyping.set(true);
           this.shouldScroll = true;
         }
@@ -220,16 +267,55 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     );
   }
 
+  async loadOlder(): Promise<void> {
+    if (this.loadingMore() || !this.hasMore() || !this.cursor) return;
+
+    this.loadingMore.set(true);
+
+    // Snapshot scroll height before prepending so we can restore position
+    const el = this.scrollContainer?.nativeElement;
+    this.scrollHeightBeforeLoad = el ? el.scrollHeight : 0;
+    this.shouldKeepScroll = true;
+
+    const res = await this.chat.getMessages(this.conversationId, {
+      cursor: this.cursor,
+      limit:  PAGE_LIMIT,
+    });
+    const raw = res.messages ?? [];
+
+    if (raw.length > 0) {
+      // Server returns DESC; reverse to oldest→newest, then prepend to existing list
+      const older = [...raw].reverse();
+      this.messages.update(prev => [...older, ...prev]);
+      this.hasMore.set(raw.length === PAGE_LIMIT);
+      // Advance cursor to the oldest message in this batch (last item in DESC array)
+      this.cursor = raw[raw.length - 1].created_at;
+    } else {
+      this.hasMore.set(false);
+    }
+
+    this.loadingMore.set(false);
+  }
+
   ngAfterViewChecked(): void {
     if (this.shouldScroll) {
       this.bottomAnchor?.nativeElement?.scrollIntoView({ behavior: 'smooth' });
       this.shouldScroll = false;
     }
+
+    // After prepending older messages, restore scroll position so the view
+    // doesn't jump to the top
+    if (this.shouldKeepScroll) {
+      const el = this.scrollContainer?.nativeElement;
+      if (el && el.scrollHeight !== this.scrollHeightBeforeLoad) {
+        el.scrollTop = el.scrollHeight - this.scrollHeightBeforeLoad;
+        this.shouldKeepScroll = false;
+      }
+    }
   }
 
   ngOnDestroy(): void {
     this.subs.forEach(s => s.unsubscribe());
-    // Make sure we stop typing when leaving the chat
     if (this.isTyping) {
       this.socket.emitTypingStop(this.conversationId);
     }
@@ -244,17 +330,13 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       this.socket.emitTypingStart(this.conversationId);
     }
 
-    // Reset the stop timer on every keystroke
-    if (this.typingTimeout) {
-      clearTimeout(this.typingTimeout);
-    }
+    if (this.typingTimeout) clearTimeout(this.typingTimeout);
 
     if (this.inputText.trim().length === 0) {
       this.stopTyping();
       return;
     }
 
-    // Auto-stop after 2s of inactivity
     this.typingTimeout = setTimeout(() => this.stopTyping(), 2000);
   }
 
@@ -281,9 +363,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     const content = this.inputText.trim();
     if (!content || this.sending()) return;
 
-    // Stop typing when sending
     this.stopTyping();
-
     this.sendError.set(null);
     this.sending.set(true);
     const res = await this.chat.sendMessage(this.conversationId, content);

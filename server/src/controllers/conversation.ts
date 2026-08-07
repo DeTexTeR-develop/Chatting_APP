@@ -102,6 +102,7 @@ const getConversations = async (req: Request, res: Response) => {
             const cursor = req.query.created_at;
             const conversationId = req.params.id;
             let message;
+            let hasMore;
             if (!cursor) {
                 message = await pool.query(
                     `
@@ -109,7 +110,7 @@ const getConversations = async (req: Request, res: Response) => {
                     WHERE conversation_id=$1
                     ORDER BY created_at DESC
                     LIMIT $2
-                    `, [conversationId, limit]
+                    `, [conversationId, limit+1]
                 )
             }else{
                 message = await pool.query(
@@ -119,13 +120,20 @@ const getConversations = async (req: Request, res: Response) => {
                 AND created_at < $3
                 ORDER BY created_at DESC
                 LIMIT $2
-                `, [conversationId, limit, cursor]
+                `, [conversationId, limit+1, cursor]
             );
             };
 
+            if(message.rows.length > limit){
+                hasMore = true;
+            }else{
+                hasMore = false;
+            };
+            const messages = message.rows.slice(0, limit);
             res.status(200).json({
                 success: true,
-                messages: message.rows
+                messages: messages,
+                hasMore
             });
 
         } catch (err) {
