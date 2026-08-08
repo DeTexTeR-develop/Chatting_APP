@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { pool } from "../config/db";
-import { getIO } from "../sockets/socket";
+import { pubRedisClient } from "../services/redisService/pubsub";
 
 
 const createConversation = async (req: Request, res: Response) => {
@@ -189,11 +189,11 @@ const sendMessage = async (req: Request, res: Response) => {
 
         const messageWithSender = { ...message.rows[0], sender_username };
 
-        const io = getIO();
-        io.to("conversation:" + conversationId).emit("receive_message", {
+        pubRedisClient.publish("chat:message", JSON.stringify({
+            conversationId,
             message: messageWithSender
-        });
-
+        }))
+        
         res.status(200).json({
             success: true,
             message: messageWithSender
