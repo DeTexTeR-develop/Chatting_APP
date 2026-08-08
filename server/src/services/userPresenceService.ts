@@ -1,4 +1,4 @@
-import redisClient from "./redis";
+import redisClient from "./redisService/redis";
 
 const ONLINE_KEY = 'online_users';
 

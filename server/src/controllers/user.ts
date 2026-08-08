@@ -1,13 +1,17 @@
 import { Request, Response } from "express";
 import { pool } from "../config/db";
-import redisClient from "../services/redis";
+import redisClient from "../services/redisService/redis";
 import { UUID } from "node:crypto";
 
 const getAllUsers = async(req : Request, res : Response) : Promise<void> => {
     try{
         const users = await pool.query(
             `
-            SELECT * FROM users
+            SELECT id,
+            username,
+            email,
+            created_at
+            FROM users
             `
         );
         res.status(200).json({
@@ -36,7 +40,13 @@ const getUser = async(req: Request, res: Response)  => {
         }
         const user = await pool.query(
             `
-            SELECT * FROM users 
+            SELECT 
+            id,
+            username,
+            email,
+            role,
+            created_at
+            FROM users 
             WHERE id = $1 
             `, [id]
         );
@@ -45,10 +55,6 @@ const getUser = async(req: Request, res: Response)  => {
             JSON.stringify(user.rows[0]),
             "EX", 3600
         );
-
-        console.log("SET RESULT:", redisResult);
-
-        const value = await redisClient.get(key);
 
         res.status(200).json({
             success: true,
@@ -95,7 +101,11 @@ const updateUser = async (req: Request, res: Response): Promise<void> => {
             UPDATE users
             SET ${fields.join(", ")}
             WHERE id = $${values.length}
-            RETURNING *
+            RETURNING id,
+            email,
+            username,
+            role,
+            created_at
         `;
 
         const updatedUser = await pool.query(query, values);
@@ -122,7 +132,9 @@ const deleteUser = async(req: Request, res: Response) : Promise<void> => {
             `
             DELETE FROM users
             WHERE id = $1
-            RETURNING *
+            RETURNING 
+            id,
+            username
             `
             ,[id]
         );

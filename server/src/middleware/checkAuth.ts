@@ -21,13 +21,18 @@ export const autheticateUser = async(req: Request, res: Response, next: NextFunc
 
         const user = await pool.query(
             `
-            SELECT * FROM users
+            SELECT 
+            id,
+            username,
+            email,
+            role
+            FROM users
             WHERE id = $1
             `,
             [decoded.id ]
         );
         
-        if(user.rowCount === 0){
+        if(user.rowCount === 0 || !user.rowCount){
             res.status(401).json({
                 success : false,
                 message : "Unauthorized"
@@ -35,7 +40,7 @@ export const autheticateUser = async(req: Request, res: Response, next: NextFunc
             return;
         };
 
-        (req as any).user = decoded;
+        (req as any).user = user.rows[0];
 
         next();
 
