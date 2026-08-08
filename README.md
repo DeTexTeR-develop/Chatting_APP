@@ -935,6 +935,7 @@ The project has reached the stage where the core backend functionality is implem
 - Redis caching
 - Cache invalidation
 - Redis-based presence
+- Typing indicators
 - Redis Pub/Sub
 - Cursor-based message pagination
 - Database indexing and query optimization work
@@ -954,7 +955,6 @@ The core architecture is intentionally being completed before adding smaller pro
 Potential future improvements include:
 
 - Read receipts
-- Typing indicators
 - Message delivery status
 - Message editing
 - Message deletion
