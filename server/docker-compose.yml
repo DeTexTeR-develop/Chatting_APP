@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: realtime-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - chat-network
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis
+    networks:
+      - chat-network
+
+  backend:
+    build:
+      context: .
+    container_name: chat-server
+    environment:
+      DB_USER: ${DB_USER}
+      DB_HOST: realtime-postgres
+      DB_NAME: ${DB_NAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PORT: 5432
+      PORT: ${PORT}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "${PORT}:${PORT}"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - chat-network
+
+networks:
+  chat-network:
+    external: true
+
+volumes:
+  postgres_data:

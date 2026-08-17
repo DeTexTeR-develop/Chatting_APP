@@ -4,3 +4,4 @@ node_modules
 .kiro
 .vscode
 .DS_Store
+realtime_chat.sql
