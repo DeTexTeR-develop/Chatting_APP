@@ -489,6 +489,37 @@ A maximum page size is also enforced to prevent clients from requesting an unnec
 
 ---
 
+# Database Migrations
+
+The current database has been developed using raw PostgreSQL and SQL queries.
+
+The next database-infrastructure step is to introduce versioned SQL migrations so that a fresh PostgreSQL instance can be initialized without relying on a personal database dump.
+
+The intended workflow is:
+
+```text
+Clone repository
+      │
+      ▼
+Create .env
+      │
+      ▼
+docker compose up
+      │
+      ▼
+Fresh PostgreSQL
+      │
+      ▼
+Run SQL migrations
+      │
+      ▼
+Required tables and indexes
+```
+
+Personal database dumps and application data should not be committed to the repository.
+
+---
+
 # REST API
 
 The backend uses REST APIs for operations that do not require a persistent WebSocket connection.
@@ -670,73 +701,98 @@ cd <project-directory>
 
 ---
 
-## Start PostgreSQL
+## Run the Backend with Docker Compose
 
-Create the required PostgreSQL database and configure the credentials in `.env`.
+The current development setup runs the backend, PostgreSQL, and Redis through Docker Compose.
 
-The application expects the configured PostgreSQL instance to be reachable using the database environment variables.
+### Prerequisites
 
----
+Install:
 
-## Start Redis
+- Docker Desktop
+- Git
 
-If Redis is installed locally:
-
-```bash
-redis-server
-```
-
-Or with Docker:
+### Clone the repository
 
 ```bash
-docker run --name chat-redis -p 6379:6379 -d redis
+git clone <repository-url>
+cd <project-directory>
 ```
 
----
+### Configure environment variables
 
-## Install backend dependencies
-
-```bash
-cd server
-npm install
-```
-
----
-
-## Configure environment variables
-
-Create a `.env` file in the backend directory:
+Create a `.env` file in the directory containing `docker-compose.yml`:
 
 ```env
-PORT=8001
-
 DB_USER=your_db_user
-DB_HOST=localhost
-DB_NAME=your_database
+DB_HOST=realtime-postgres
+DB_NAME=realtime_chat
 DB_PASSWORD=your_password
 DB_PORT=5432
 
+PORT=8002
+
 JWT_SECRET=your_jwt_secret
 
-REDIS_HOST=localhost
+REDIS_HOST=redis
 REDIS_PORT=6379
 ```
 
----
+Do not commit `.env`.
 
-## Start the backend
-
-Use the development script configured in `package.json`.
-
-For example:
+### Start the backend infrastructure
 
 ```bash
-npm run dev
+docker compose up -d --build
 ```
 
----
+This starts:
 
-## Start the Angular frontend
+```text
+Docker Compose
+│
+├── chat-server
+├── realtime-postgres
+└── redis
+```
+
+All three services communicate over the `chat-network` Docker network.
+
+### Check running services
+
+```bash
+docker compose ps
+```
+
+### View backend logs
+
+```bash
+docker compose logs -f backend
+```
+
+### Connect to PostgreSQL
+
+```bash
+docker exec -it realtime-postgres psql -U your_db_user -d realtime_chat
+```
+
+### Connect to Redis
+
+```bash
+docker exec -it redis redis-cli
+```
+
+### Stop the services
+
+```bash
+docker compose down
+```
+
+The PostgreSQL data is stored in a named Docker volume so that the database persists when the PostgreSQL container is recreated.
+
+### Start the Angular frontend
+
+The Angular frontend can be run separately during development:
 
 ```bash
 cd client_a
@@ -744,31 +800,75 @@ npm install
 npm start
 ```
 
-The exact commands may differ depending on the scripts currently configured in the repository.
+The exact frontend command may differ depending on the scripts currently configured in `package.json`.
 
 ---
 
 # Docker
 
-Docker can be used to package the application and run infrastructure consistently across environments.
+The backend is containerized using a multi-stage Dockerfile.
 
-A typical deployment architecture can eventually look like:
+The first stage installs dependencies and compiles the TypeScript application. The production stage contains the compiled `dist` output and production dependencies only.
+
+The current local infrastructure is orchestrated with Docker Compose:
 
 ```text
-                 Internet
-                    │
-                    ▼
-              Load Balancer
-                    │
-          ┌─────────┴─────────┐
-          ▼                   ▼
-     Backend 1            Backend 2
-          │                   │
-          └─────────┬─────────┘
-                    │
-             ┌──────┴──────┐
-             ▼             ▼
-        PostgreSQL       Redis
+                    Docker Compose
+                          │
+             ┌────────────┼────────────┐
+             ▼            ▼            ▼
+        chat-server     Redis      PostgreSQL
+             │            │             │
+             └────────────┴─────────────┘
+                    chat-network
+                          │
+                          ▼
+                  PostgreSQL volume
+```
+
+The Compose configuration:
+
+- Builds the backend from the existing `Dockerfile`
+- Runs PostgreSQL 18
+- Runs Redis 7
+- Connects all services through `chat-network`
+- Persists PostgreSQL data using a named Docker volume
+- Passes secrets and environment-specific configuration through `.env`
+- Exposes the backend on port `8002`
+
+Start the complete backend stack with:
+
+```bash
+docker compose up -d --build
+```
+
+Stop it with:
+
+```bash
+docker compose down
+```
+
+Do not commit `.env` or real production credentials to the repository.
+
+### Production Scaling
+
+A typical production architecture can eventually look like:
+
+```text
+                  Internet
+                     │
+                     ▼
+                Load Balancer
+                     │
+             ┌───────┴───────┐
+             ▼               ▼
+        Backend 1        Backend 2
+             │               │
+             └───────┬───────┘
+                     │
+              ┌──────┴──────┐
+              ▼             ▼
+         PostgreSQL       Redis
 ```
 
 Running multiple backend instances introduces additional requirements such as:
@@ -780,6 +880,7 @@ Running multiple backend instances introduces additional requirements such as:
 - Load balancing
 - Centralized logging
 - Health checks
+- Production secret management
 
 These concerns are part of the application's production deployment phase.
 
@@ -940,11 +1041,15 @@ The project has reached the stage where the core backend functionality is implem
 - Cursor-based message pagination
 - Database indexing and query optimization work
 - Angular frontend migration
-- Docker-based infrastructure work
+- Docker-based infrastructure
+- Docker Compose orchestration
+- Containerized PostgreSQL with persistent volume
+- Containerized Redis
+- Backend-to-PostgreSQL and backend-to-Redis Docker networking
 
 ### Current Focus
 
-The next major phase is **production deployment**, including infrastructure configuration, environment management, HTTPS, production CORS, health checks, logging, and validating the application with multiple backend instances.
+The next major phase is **production deployment**, including infrastructure configuration, environment management, HTTPS, production CORS, health checks, logging, database migrations, and validating the application with multiple backend instances.
 
 ---
 
@@ -962,6 +1067,7 @@ Potential future improvements include:
 - File and image messages
 - Notifications
 - Rate limiting
+- Database migration system using versioned raw SQL migrations
 - Automated tests
 - CI/CD
 - Centralized monitoring
@@ -1026,6 +1132,8 @@ The main concepts demonstrated include:
 - Horizontal scaling
 - Load balancing concepts
 - Production deployment
+- Docker Compose orchestration
+- Database migrations
 
 ---
 
