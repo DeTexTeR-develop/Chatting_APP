@@ -50,12 +50,21 @@ export class ChatService {
     );
   }
 
-  async sendMessage(conversationId: number | string, content: string): Promise<{ success: boolean; message?: MessageRow }> {
+  async sendMessage(
+    conversationId: number | string,
+    content: string,
+    media?: File | null
+  ): Promise<{ success: boolean; message?: MessageRow }> {
     try {
+      const body = new FormData();
+      body.append('content', content);
+      if (media) {
+        body.append('media', media);
+      }
       return await lastValueFrom(
         this.http.post<{ success: boolean; message?: MessageRow }>(
           `${this.base}/chat/${conversationId}/messages`,
-          { content },
+          body,
           { withCredentials: true }
         )
       );

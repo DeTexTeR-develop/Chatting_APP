@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, signal, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, ViewChild, ElementRef, AfterViewChecked, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
@@ -61,6 +61,20 @@ const PAGE_LIMIT = 30;
 
       <!-- Input -->
       <form class="input-bar" (ngSubmit)="send()">
+        <!-- Hidden file input — images only -->
+        <input
+          #fileInput
+          type="file"
+          accept="image/*"
+          style="display:none"
+          (change)="onFileSelected($event)"
+        />
+        <button type="button" class="btn clip-btn" (click)="fileInput.click()" [disabled]="sending()" title="Attach image">
+          📎
+        </button>
+        @if (selectedFile()) {
+          <span class="file-badge">{{ selectedFile()!.name }}</span>
+        }
         <input
           type="text"
           placeholder="Message…"
@@ -177,8 +191,35 @@ const PAGE_LIMIT = 30;
       padding: 0.75rem 1.5rem;
       border-top: 1px solid var(--border-strong);
       background: var(--bg);
+      align-items: center;
     }
-    .input-bar input {
+    .clip-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.4rem 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .clip-btn:hover:not(:disabled) {
+      background: var(--bg-subtle);
+    }
+    .file-badge {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.2rem 0.5rem;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .input-bar input[type="text"] {
       flex: 1;
       padding: 0.5rem 0.75rem;
       border: 1px solid var(--border-strong);
@@ -187,7 +228,7 @@ const PAGE_LIMIT = 30;
       color: var(--text);
       outline: none;
     }
-    .input-bar input:focus {
+    .input-bar input[type="text"]:focus {
       border-color: var(--text);
     }
   `]
@@ -206,6 +247,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   sendError   = signal<string | null>(null);
   otherIsTyping  = signal(false);
   typingUsername = signal<string>('');
+  selectedFile   = signal<File | null>(null);
 
   private cursor: string | undefined = undefined;
   private subs: Subscription[] = [];
@@ -219,7 +261,8 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     private route:  ActivatedRoute,
     private chat:   ChatService,
     private auth:   AuthService,
-    private socket: SocketService
+    private socket: SocketService,
+    private cdr:    ChangeDetectorRef
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -359,6 +402,17 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     return String(msg.sender_id) === String(this.auth.user()?.id);
   }
 
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    this.selectedFile.set(file);
+    if (file) {
+      console.log('Selected file:', file);
+    }
+    // Reset so the same file can be re-selected if needed
+    input.value = '';
+  }
+
   async send(): Promise<void> {
     const content = this.inputText.trim();
     if (!content || this.sending()) return;
@@ -366,11 +420,12 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.stopTyping();
     this.sendError.set(null);
     this.sending.set(true);
-    const res = await this.chat.sendMessage(this.conversationId, content);
+    const res = await this.chat.sendMessage(this.conversationId, content, this.selectedFile());
     this.sending.set(false);
 
     if (res.success) {
       this.inputText = '';
+      this.selectedFile.set(null);
     } else {
       this.sendError.set('Failed to send. Please try again.');
     }

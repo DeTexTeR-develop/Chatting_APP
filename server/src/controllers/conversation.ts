@@ -149,22 +149,26 @@ const sendMessage = async (req: Request, res: Response) => {
         const senderId = (req as any).user.id;
         const conversationId = req.params.id;
         const messageContent = req.body.content;
+        const messageMediaContent = req.file;
+
+        console.log('req.file:', req.file);
+        console.log('req.body:', req.body);
+        console.log('Content-Type:', req.headers['content-type']);
 
         if (!messageContent) {
-            console.error("Somerthing went wron while sending message")
+            console.error("Something went wrong while sending message");
             return res.status(400).json({
                 success: false,
-                message: "message content is requried"
+                message: "message content is required"
             });
         };
         if (!conversationId) {
-            console.error("Somerthing went wrong while sending message")
+            console.error("Something went wrong while sending message");
             return res.status(400).json({
                 success: false,
                 message: "conversation id is required"
             });
         };
-
 
         const message = await pool.query(
             `
@@ -178,7 +182,7 @@ const sendMessage = async (req: Request, res: Response) => {
         if (!message || message.rows.length <= 0) {
             return res.status(400).json({
                 success: false,
-                message: "Couldn't send message please try agian later"
+                message: "Couldn't send message please try again later"
             });
         };
 
@@ -192,18 +196,18 @@ const sendMessage = async (req: Request, res: Response) => {
         pubRedisClient.publish("chat:message", JSON.stringify({
             conversationId,
             message: messageWithSender
-        }))
-        
+        }));
+
         res.status(200).json({
             success: true,
             message: messageWithSender
         });
     } catch (err) {
-        console.error(err)
+        console.error(err);
         res.status(500).json({
             success: false,
             message: "Something went wrong while sending message"
-        })
+        });
     }
 };
 export { createConversation, getConversations, getMessage, sendMessage };
